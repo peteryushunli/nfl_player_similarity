@@ -11,11 +11,11 @@ st.title('Fantasy Football Player Similarity')
 @st.cache_data
 #Load Data
 def load_season_data():
-    data = pd.read_csv('/Users/yushunli/Documents/Data Science/nfl_player_similarity/data/Season_Stats_2000_22.csv')
+    data = pd.read_csv('data/Season_Stats_2000_22.csv')
     return data
 
 def load_draft_data():
-    data = pd.read_csv('/Users/yushunli/Documents/Data Science/nfl_player_similarity/data/1994_to_2022_draftclass.csv')
+    data = pd.read_csv('data/1994_to_2022_draftclass.csv')
     return data
 
 #data_load_state = st.text('Loading data...')
@@ -25,26 +25,26 @@ draft_df = load_draft_data()
 season_df['Pos_Rank'] = season_df.groupby(['Pos', 'Season'])['Fantasy_Points'].rank(ascending = False, method = 'min')
 
 unique_players = season_df['Player'].unique()
-
+@st.cache_data
 
 #########################################################
 ################ Load Helper Functions ##################
 #########################################################
 
+@st.cache_data
 def find_peers(season_df, target):
-    a_df = season_df.loc[season_df.Player == target]
-    a_df.reset_index(drop=True, inplace=True)
-    position = a_df.Pos[0]
-    min_age = a_df.Age.min()
-    max_age = a_df.Age.max()
-    return_df = season_df.loc[(season_df.Age >= min_age) & (season_df.Age <= max_age) & (season_df.Pos == position)] 
-    #return_df = season_df.loc[(season_df.Age <= max_age) & (season_df.Pos == position)] 
-    return return_df
+    df = season_df.copy()
+    target_df = df.loc[df.Player == target]
+    if not target_df.empty:
+        position = target_df.Pos.iloc[0]  
+        min_age = target_df.Age.min()
+        max_age = target_df.Age.max()
+    return df.loc[(df.Age >= min_age) & (df.Age <= max_age) & (df.Pos == position)] 
 
 def abs_difference(peer_df, target):
     peer_df = peer_df.drop_duplicates(subset = ['Player', 'Age'], keep='first')
     peer_pivot = peer_df.pivot(index = 'Player', columns = 'Age', values = 'Fantasy_Points').dropna(axis=0)
-    reference_row =peer_pivot.loc[peer_pivot.index == target].iloc[0]
+    reference_row = peer_pivot.loc[peer_pivot.index == target].iloc[0]
     peer_fantasy = round(abs(peer_pivot.sub(reference_row) / reference_row),2)
     peer_fantasy.columns = 'Age_' + peer_fantasy.columns.astype(int).astype(str)
     peer_fantasy['Avg'] = round(peer_fantasy.mean(axis = 1),2)
@@ -54,6 +54,7 @@ def abs_difference(peer_df, target):
     fantasy_points.sort_values(by = 'Avg', ascending = True, inplace=True)
     return fantasy_points
 
+@st.cache_data
 def euclid_rank(df, target_player, age):
     target = df.loc[df.Player == target_player]
     non = df.loc[df.Player != target_player]
@@ -76,11 +77,9 @@ def euclid_compare(peer_df, target):
     
     #For Loop to Create Individual Dataframes of all unique ages
     for i in peer_df.Age.unique():
-        a = str(i) 
-        a = a[:-2]
-        b = int(a)
-        age_range.append(b)
-        name = 'season_'+str(a)
+        a = int(i) 
+        age_range.append(a)
+        name = 'Age_'+str(a)
         vars()[name] = peer_df.loc[peer_df.Age == i]
         #Run euclid rank
         euclid_name = 'euclid_'+str(a)
@@ -177,13 +176,12 @@ def calculate_similarities(target, season_df, draft_df):
     final_output.dropna(subset=['Avg'], inplace=True)
     final_output = final_output.loc[final_output.Avg < 1]
     return final_output
-    #return output_df
 
 ############################################################################
 # Create Basic User Interface for Player Selection
 user_input = st.selectbox("Enter player name", options=unique_players)
 if st.button('Run Similarity Analysis'):
+    st.dataframe(season_df.loc[season_df.Player == user_input])
     st.write("Finding similar players for", user_input)
-
     #Run Similarity Analysis
     st.dataframe(find_peers(season_df = season_df, target = user_input).head(5))
