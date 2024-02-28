@@ -104,7 +104,7 @@ def draft_similarity(peer_draft, draft_df):
     agg = agg.groupby('Pos').mean()
     agg['Avg_Players_Drafted'] = round(agg['Player'],0)
     draft_avg = agg['Avg_Players_Drafted']
-    draft_avg
+    #draft_avg
     
     #Calculate the Positional Pick Difference
     position = peer_draft.Pos.mode()[0]
@@ -128,23 +128,7 @@ def draft_score_weighting(output_df, peer_score):
     #output_df2.reset_index(inplace=True)
     return output_df2
 
-def calculate_similarities(target, season_df, draft_df):
-    #Find Peers
-    peer_df = find_peers(season_df = season_df, target = target)
-    
-    #Calculate Abs. % Difference of each season
-    fantasy_points = abs_difference(peer_df = peer_df, target = target)
-    
-    #Calculate Euclidean Distance
-    euclid = euclid_compare(peer_df = peer_df, target = target)
-    euclid = euclid.sort_index()
-    euclid.sort_values(by = 'Avg', ascending = True, inplace=True)
-    
-    #Aggregate and Average the 2 metrics
-    output_df = (fantasy_points + euclid) / 2
-    output_df.sort_values(by = 'Avg', ascending=True, inplace=True)
-    output_df = output_df.head(25)
-    
+def calculate_similarities(target, output_df, draft_df):
     #Add the Draft Similarity Scores
     peer_draft = draft_position(output_df, draft_df, target)
     peer_score = draft_similarity(peer_draft, draft_df)
@@ -155,29 +139,37 @@ def calculate_similarities(target, season_df, draft_df):
 
 ############################################################################
 # Create Basic User Interface for Player Selection
-st.cache_data
+#st.cache_data
 target = st.selectbox("Enter player name", options=unique_players)
 if st.button('Run Similarity Analysis'):
     st.dataframe(season_df.loc[season_df.Player == target])
-    st.write("Finding similar players for", target)
+    st.write("Finding players who are most similar to", target)
     #Run Similarity Analysis
     #st.dataframe(find_peers(season_df = season_df, target = target))
 
-#Run Find Peers Function
-df = season_df.copy()
-target_df = df.loc[df.Player == target]
-position = target_df.Pos.iloc[0]  
-min_age = target_df.Age.min()
-max_age = target_df.Age.max()
-peer_df = df.loc[(df.Age >= min_age) & (df.Age <= max_age) & (df.Pos == position)] 
+    #Run Find Peers Function
+    df = season_df.copy()
+    target_df = df.loc[df.Player == target]
+    position = target_df.Pos.iloc[0]  
+    min_age = target_df.Age.min()
+    max_age = target_df.Age.max()
+    peer_df = df.loc[(df.Age >= min_age) & (df.Age <= max_age) & (df.Pos == position)] 
 
-#Run the Fantasy Points abs. difference function
-peer_df = peer_df.drop_duplicates(subset = ['Player', 'Age'], keep='first')
-peer_pivot = peer_df.pivot(index = 'Player', columns = 'Age', values = 'Fantasy_Points').dropna(axis=0)
-reference_row = peer_pivot.loc[peer_pivot.index == target].iloc[0]
-peer_fantasy = round(abs(peer_pivot.sub(reference_row) / reference_row),2)
-peer_fantasy.columns = 'Age_' + peer_fantasy.columns.astype(int).astype(str)
-peer_fantasy['Avg'] = round(peer_fantasy.mean(axis = 1),2)
-peer_fantasy = peer_fantasy.loc[peer_fantasy.index != target]
-peer_fantasy.sort_values(by = 'Avg', ascending = True, inplace=True)
+    #Run the Fantasy Points abs. difference function
+    peer_df = peer_df.drop_duplicates(subset = ['Player', 'Age'], keep='first')
+    peer_pivot = peer_df.pivot(index = 'Player', columns = 'Age', values = 'Fantasy_Points').dropna(axis=0)
+    reference_row = peer_pivot.loc[peer_pivot.index == target].iloc[0]
+    peer_fantasy = round(abs(peer_pivot.sub(reference_row) / reference_row),2)
+    peer_fantasy.columns = 'Age_' + peer_fantasy.columns.astype(int).astype(str)
+    peer_fantasy['Avg'] = round(peer_fantasy.mean(axis = 1),2)
+    peer_fantasy = peer_fantasy.loc[peer_fantasy.index != target]
+    peer_fantasy.sort_values(by = 'Avg', ascending = True, inplace=True)
 
+    euclid_df = euclid_compare(peer_df = peer_df, target = target)
+
+    #Aggregate and Average the 2 metrics
+    output_df = (peer_fantasy+euclid_df) / 2
+    output_df.sort_values(by = 'Avg', ascending=True, inplace=True)
+
+    final_df = calculate_similarities(target, output_df, draft_df)
+    st.dataframe(final_df.head(25))
