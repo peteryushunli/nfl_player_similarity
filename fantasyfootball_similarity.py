@@ -15,11 +15,11 @@ st.title('Fantasy Football Player Similarity')
 
 #Load Data
 def load_season_data():
-    data = pd.read_csv('data/Season_Stats_2000_22.csv')
+    data = pd.read_csv('data/old_scraping/Season_Stats_2000_22.csv')
     return data
 
 def load_draft_data():
-    data = pd.read_csv('data/1994_to_2022_draftclass.csv')
+    data = pd.read_csv('data/old_scraping/1994_to_2022_draftclass.csv')
     return data
 
 #data_load_state = st.text('Loading data...')
