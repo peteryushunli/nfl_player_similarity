@@ -15,48 +15,48 @@ class FantasyProjectionModel:
     
     def get_projection_stats(
         self, 
-        target_player: str, 
+        target_player_id: str, 
         similar_players: pd.DataFrame, 
         season_df: pd.DataFrame
     ) -> pd.DataFrame:
         """Get projection statistics for similar players.
         
         Args:
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             similar_players: DataFrame with similar players
             season_df: DataFrame containing seasonal statistics
             
         Returns:
             DataFrame with projection statistics
         """
-        player_list = [target_player] + similar_players.index.tolist()
+        player_list = [target_player_id] + similar_players.index.tolist()
         
         # Look at performances in subsequent seasons
-        projection_stats = season_df[season_df['Player'].isin(player_list)]
-        target_age = season_df[season_df['Player'] == target_player]['Age'].min()
+        projection_stats = season_df[season_df['pfr_id'].isin(player_list)]
+        target_age = season_df[season_df['pfr_id'] == target_player_id]['Age'].min()
         projection_stats = projection_stats[projection_stats['Age'] > target_age]
         
         # Group and pivot the data
-        grouped_stats = projection_stats.groupby(['Player', 'Age'])['Fantasy_Points'].mean().reset_index()
-        proj_points = grouped_stats.pivot(index='Player', columns='Age', values='Fantasy_Points')
+        grouped_stats = projection_stats.groupby(['pfr_id', 'Age'])['Fantasy_Points'].mean().reset_index()
+        proj_points = grouped_stats.pivot(index='pfr_id', columns='Age', values='Fantasy_Points')
         
         return proj_points
     
     def create_point_buckets(
         self, 
-        target_player: str, 
+        target_player_id: str, 
         season_df: pd.DataFrame
     ) -> pd.DataFrame:
         """Create point buckets for ranking visualization.
         
         Args:
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             season_df: DataFrame containing seasonal statistics
             
         Returns:
             DataFrame with point buckets and average ranks
         """
-        position = season_df.loc[season_df.Player == target_player].Pos.min()
+        position = season_df.loc[season_df.pfr_id == target_player_id].Pos.min()
         latest_season = season_df.Season.max()
         latest_season_df = season_df.loc[
             (season_df.Season == latest_season) & (season_df.Pos == position)
@@ -120,13 +120,23 @@ class FantasyProjectionModel:
         weights = similar_players.copy()
         weights['Avg'] = 1 - weights['Avg']
         
-        # Align projections with weights
-        proj_points = proj_points.loc[weights.index]
-        proj_points['Weight'] = weights['Avg']
+        # Find common players between projections and weights
+        common_players = proj_points.index.intersection(weights.index)
+        
+        if len(common_players) == 0:
+            # If no common players, return empty DataFrame with same structure
+            return pd.DataFrame(columns=proj_points.columns)
+        
+        # Filter both DataFrames to only include common players
+        proj_points_filtered = proj_points.loc[common_players]
+        weights_filtered = weights.loc[common_players]
+        
+        # Add weights to projections
+        proj_points_filtered['Weight'] = weights_filtered['Avg']
         
         # Create weighted projections
-        weighted_proj_points = proj_points.loc[
-            np.repeat(proj_points.index.values, proj_points['Weight'])
+        weighted_proj_points = proj_points_filtered.loc[
+            np.repeat(proj_points_filtered.index.values, proj_points_filtered['Weight'])
         ]
         weighted_proj_points.drop(columns='Weight', inplace=True)
         weighted_proj_points = weighted_proj_points[weighted_proj_points != 0]
@@ -151,14 +161,14 @@ class FantasyProjectionModel:
     
     def project_fantasy_points(
         self, 
-        target_player: str, 
+        target_player_id: str, 
         similar_players: pd.DataFrame, 
         season_df: pd.DataFrame
     ) -> Dict[str, Any]:
         """Generate comprehensive fantasy point projections.
         
         Args:
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             similar_players: DataFrame with similar players
             season_df: DataFrame containing seasonal statistics
             
@@ -166,7 +176,18 @@ class FantasyProjectionModel:
             Dictionary containing projection data and metadata
         """
         # Get projection statistics
-        proj_points = self.get_projection_stats(target_player, similar_players, season_df)
+        proj_points = self.get_projection_stats(target_player_id, similar_players, season_df)
+        
+        # Check if we have any projection data
+        if proj_points.empty:
+            return {
+                'projection_points': pd.DataFrame(),
+                'weighted_projections': pd.DataFrame(),
+                'summary': pd.DataFrame(),
+                'point_buckets': self.create_point_buckets(target_player_id, season_df),
+                'num_seasons': 0,
+                'error': 'No projection data available for similar players'
+            }
         
         # Clean the data
         proj_points = self.clean_projection_data(proj_points)
@@ -178,12 +199,12 @@ class FantasyProjectionModel:
         summary = self.generate_projection_summary(proj_points)
         
         # Create point buckets for visualization
-        point_buckets = self.create_point_buckets(target_player, season_df)
+        point_buckets = self.create_point_buckets(target_player_id, season_df)
         
         return {
             'projection_points': proj_points,
-            'weighted_projections': weighted_projections,
             'summary': summary,
+            'weighted_projections': weighted_projections,
             'point_buckets': point_buckets,
             'num_seasons': len(proj_points.columns)
         } 

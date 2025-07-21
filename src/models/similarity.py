@@ -16,21 +16,21 @@ class PlayerSimilarityModel:
     def calculate_euclidean_distance(
         self, 
         df: pd.DataFrame, 
-        target_player: str, 
+        target_player_id: str, 
         age: int
     ) -> pd.DataFrame:
         """Calculate Euclidean distance between target player and peers.
         
         Args:
             df: DataFrame containing player data
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             age: Age to filter by
             
         Returns:
             DataFrame with Euclidean distances
         """
-        target = df.loc[df.Player == target_player]
-        non_target = df.loc[df.Player != target_player]
+        target = df.loc[df.pfr_id == target_player_id]
+        non_target = df.loc[df.pfr_id != target_player_id]
         
         # Extract scaled feature data
         target_features = target.loc[:, target.columns.str.endswith("_Scaled")]
@@ -40,8 +40,14 @@ class PlayerSimilarityModel:
         euclid_distances = cdist(non_target_features, target_features, 'euclid')
         euclid_distances = euclid_distances.round(decimals=2)
         
+        # If we have multiple target players (multiple seasons), take the mean
+        if euclid_distances.shape[1] > 1:
+            euclid_distances = euclid_distances.mean(axis=1)
+        else:
+            euclid_distances = euclid_distances.flatten()
+        
         # Create result DataFrame
-        names = non_target.Player
+        names = non_target.pfr_id
         col_name = f'Age_{age}'
         result_df = pd.DataFrame(
             data=euclid_distances, 
@@ -54,13 +60,13 @@ class PlayerSimilarityModel:
     def compare_euclidean_distances(
         self, 
         peer_df: pd.DataFrame, 
-        target_player: str
+        target_player_id: str
     ) -> pd.DataFrame:
         """Compare Euclidean distances across all ages for a target player.
         
         Args:
             peer_df: DataFrame containing peer player data
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             
         Returns:
             DataFrame with average Euclidean distances
@@ -73,7 +79,7 @@ class PlayerSimilarityModel:
             age_data = peer_df.loc[peer_df.Age == age]
             age_dfs[f'euclid_{age}'] = self.calculate_euclidean_distance(
                 df=age_data, 
-                target_player=target_player, 
+                target_player_id=target_player_id, 
                 age=int(age)
             )
         
@@ -83,7 +89,8 @@ class PlayerSimilarityModel:
         # Join all age DataFrames
         for age in age_range[1:]:
             age_df = age_dfs[f'euclid_{age}']
-            base_df = pd.merge(base_df, age_df, how='inner', on='Player')
+            # Merge on index (pfr_id) instead of column
+            base_df = base_df.join(age_df, how='inner')
         
         # Calculate average distance
         base_df['Avg'] = round(base_df.mean(axis=1), 2)
@@ -92,33 +99,33 @@ class PlayerSimilarityModel:
     def calculate_fantasy_point_similarity(
         self, 
         peer_df: pd.DataFrame, 
-        target_player: str
+        target_player_id: str
     ) -> pd.DataFrame:
         """Calculate fantasy point similarity between players.
         
         Args:
             peer_df: DataFrame containing peer player data
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             
         Returns:
             DataFrame with fantasy point similarities
         """
         # Remove duplicates and pivot data
-        peer_df = peer_df.drop_duplicates(subset=['Player', 'Age'], keep='first')
+        peer_df = peer_df.drop_duplicates(subset=['pfr_id', 'Age'], keep='first')
         peer_pivot = peer_df.pivot(
-            index='Player', 
+            index='pfr_id', 
             columns='Age', 
             values='Fantasy_Points'
         ).dropna(axis=0)
         
         # Calculate relative differences
-        reference_row = peer_pivot.loc[peer_pivot.index == target_player].iloc[0]
+        reference_row = peer_pivot.loc[peer_pivot.index == target_player_id].iloc[0]
         peer_fantasy = round(abs(peer_pivot.sub(reference_row) / reference_row), 2)
         
         # Rename columns and calculate average
         peer_fantasy.columns = 'Age_' + peer_fantasy.columns.astype(int).astype(str)
         peer_fantasy['Avg'] = round(peer_fantasy.mean(axis=1), 2)
-        peer_fantasy = peer_fantasy.loc[peer_fantasy.index != target_player]
+        peer_fantasy = peer_fantasy.loc[peer_fantasy.index != target_player_id]
         peer_fantasy.sort_values(by='Avg', ascending=True, inplace=True)
         
         return peer_fantasy
@@ -127,20 +134,20 @@ class PlayerSimilarityModel:
         self, 
         peer_draft: pd.DataFrame, 
         draft_df: pd.DataFrame, 
-        target_player: str
+        target_player_id: str
     ) -> pd.DataFrame:
         """Calculate draft position similarity scores.
         
         Args:
             peer_draft: DataFrame containing draft data for peer players
             draft_df: Full draft dataset
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             
         Returns:
             DataFrame with draft similarity scores
         """
         # Identify target player's draft position
-        target_draft = peer_draft.loc[peer_draft.Player == target_player].iloc[0]
+        target_draft = peer_draft.loc[peer_draft.pfr_id == target_player_id].iloc[0]
         
         # Calculate absolute pick differences
         peer_draft.loc[:, 'Pick_Diff_Abs'] = abs(peer_draft['Pick'] - target_draft['Pick'])
@@ -206,20 +213,20 @@ class PlayerSimilarityModel:
         self, 
         season_df: pd.DataFrame, 
         draft_df: pd.DataFrame, 
-        target_player: str
+        target_player_id: str
     ) -> pd.DataFrame:
         """Find players most similar to the target player.
         
         Args:
             season_df: DataFrame containing seasonal statistics
             draft_df: DataFrame containing draft data
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             
         Returns:
             DataFrame with similarity scores for similar players
         """
         # Filter for peer players
-        target_df = season_df.loc[season_df.Player == target_player]
+        target_df = season_df.loc[season_df.pfr_id == target_player_id]
         position = target_df.Pos.iloc[0]
         min_age = target_df.Age.min()
         max_age = target_df.Age.max()
@@ -231,18 +238,18 @@ class PlayerSimilarityModel:
         ]
         
         # Calculate fantasy point similarity
-        fantasy_similarity = self.calculate_fantasy_point_similarity(peer_df, target_player)
+        fantasy_similarity = self.calculate_fantasy_point_similarity(peer_df, target_player_id)
         
         # Calculate Euclidean distance similarity
-        euclid_similarity = self.compare_euclidean_distances(peer_df, target_player)
+        euclid_similarity = self.compare_euclidean_distances(peer_df, target_player_id)
         
         # Aggregate and average the two metrics
         output_df = (fantasy_similarity + euclid_similarity) / 2
         output_df.sort_values(by='Avg', ascending=True, inplace=True)
         
         # Add draft similarity scores
-        peer_draft = self._get_peer_draft_data(output_df, draft_df, target_player)
-        peer_score = self.calculate_draft_similarity(peer_draft, draft_df, target_player)
+        peer_draft = self._get_peer_draft_data(output_df, draft_df, target_player_id)
+        peer_score = self.calculate_draft_similarity(peer_draft, draft_df, target_player_id)
         final_output = self.weight_draft_scores(output_df, peer_score)
         
         # Clean up results
@@ -255,19 +262,19 @@ class PlayerSimilarityModel:
         self, 
         output_df: pd.DataFrame, 
         draft_df: pd.DataFrame, 
-        target_player: str
+        target_player_id: str
     ) -> pd.DataFrame:
         """Get draft data for peer players.
         
         Args:
             output_df: DataFrame with similarity scores
             draft_df: Full draft dataset
-            target_player: Name of the target player
+            target_player_id: PFR ID of the target player
             
         Returns:
             DataFrame with draft data for peer players
         """
-        name_list = output_df.index.tolist()
-        name_list.append(target_player)
+        id_list = output_df.index.tolist()
+        id_list.append(target_player_id)
         
-        return draft_df.loc[draft_df.Player.isin(name_list)] 
+        return draft_df.loc[draft_df.pfr_id.isin(id_list)] 

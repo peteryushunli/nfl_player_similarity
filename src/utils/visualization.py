@@ -33,6 +33,14 @@ class VisualizationUtils:
         Returns:
             Matplotlib figure object
         """
+        # Check if we have data to plot
+        if weighted_projections.empty:
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.text(0.5, 0.5, 'No projection data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            ax.set_title(f"Fantasy Points Projection for {target_player}")
+            return fig
+        
         fig, ax = plt.subplots(figsize=(12, 8))
         
         # Create box plot
@@ -186,6 +194,9 @@ class VisualizationUtils:
         Returns:
             Formatted summary string
         """
+        if summary.empty:
+            return f"## Projection Summary for {target_player}\n\n⚠️ No projection data available for this player."
+        
         summary_text = f"## Projection Summary for {target_player}\n\n"
         
         for age in summary.columns:

@@ -45,12 +45,12 @@ def load_data():
     data_loader = DataLoader()
     try:
         season_data, draft_data, player_bio_data = data_loader.load_all_data()
-        unique_players = data_loader.get_unique_players(season_data)
-        return season_data, draft_data, player_bio_data, unique_players
+        display_options, player_mapping = data_loader.get_player_selection_options(season_data)
+        return season_data, draft_data, player_bio_data, display_options, player_mapping
     except FileNotFoundError as e:
         st.error(f"Data loading error: {e}")
         st.error("Please ensure all data files are in the data/raw directory.")
-        return None, None, None, []
+        return None, None, None, [], {}
 
 def main():
     """Main application function."""
@@ -62,7 +62,7 @@ def main():
     
     # Load data
     with st.spinner("Loading data..."):
-        season_data, draft_data, player_bio_data, unique_players = load_data()
+        season_data, draft_data, player_bio_data, display_options, player_mapping = load_data()
     
     if season_data is None:
         st.error("Failed to load data. Please check the data files.")
@@ -70,11 +70,40 @@ def main():
     
     # Sidebar for user inputs
     st.sidebar.header("Player Selection")
-    target_player = st.sidebar.selectbox(
-        "Select a player to analyze:",
-        options=unique_players,
-        index=0 if len(unique_players) > 0 else None
+    
+    # Add search functionality
+    search_term = st.sidebar.text_input(
+        "Search for a player:",
+        placeholder="Type player name, position, or year...",
+        help="Filter players by name, position, or years active"
     )
+    
+    # Filter options based on search
+    if search_term:
+        filtered_options = [
+            option for option in display_options 
+            if search_term.lower() in option.lower()
+        ]
+    else:
+        filtered_options = display_options
+    
+    selected_player_display = st.sidebar.selectbox(
+        "Select a player to analyze:",
+        options=filtered_options,
+        index=0 if len(filtered_options) > 0 else None,
+        help="Players are shown with their position and years active"
+    )
+    
+    # Get the actual PFR ID from the display string
+    target_player_id = player_mapping.get(selected_player_display, selected_player_display)
+    
+    # Show dataset statistics
+    st.sidebar.header("📊 Dataset Info")
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        st.metric("Total Players", len(display_options))
+    with col2:
+        st.metric("Data Years", f"{season_data['Season'].min()}-{season_data['Season'].max()}")
     
     # Analysis options
     st.sidebar.header("Analysis Options")
@@ -91,7 +120,7 @@ def main():
     # Main analysis button
     if st.sidebar.button('🚀 Run Analysis', type="primary"):
         run_analysis(
-            target_player, 
+            target_player_id, 
             season_data, 
             draft_data, 
             models, 
@@ -101,7 +130,7 @@ def main():
         )
 
 def run_analysis(
-    target_player: str,
+    target_player_id: str,
     season_data: pd.DataFrame,
     draft_data: pd.DataFrame,
     models: dict,
@@ -111,11 +140,14 @@ def run_analysis(
 ):
     """Run the complete analysis for a target player."""
     
-    st.header(f"Analysis Results for {target_player}")
+    # Get player name from ID for display
+    target_player_name = season_data[season_data['pfr_id'] == target_player_id]['Player'].iloc[0] if not season_data[season_data['pfr_id'] == target_player_id].empty else target_player_id
+    
+    st.header(f"Analysis Results for {target_player_name}")
     st.markdown("---")
     
     # Display target player information
-    target_info = season_data[season_data['Player'] == target_player]
+    target_info = season_data[season_data['pfr_id'] == target_player_id]
     if not target_info.empty:
         st.subheader("📊 Player Information")
         col1, col2, col3 = st.columns(3)
@@ -136,19 +168,28 @@ def run_analysis(
     st.subheader("🔍 Similar Players Analysis")
     with st.spinner("Finding similar players..."):
         similar_players = models['similarity_model'].find_similar_players(
-            season_data, draft_data, target_player
+            season_data, draft_data, target_player_id
         )
     
     if not similar_players.empty:
         st.write(f"Found {len(similar_players)} similar players")
         
-        # Display top similar players
-        st.dataframe(similar_players.head(show_similar_players))
+        # Convert IDs to names for display
+        similar_players_display = similar_players.copy()
+        similar_players_display['Player_Name'] = similar_players_display.index.map(
+            lambda x: season_data[season_data['pfr_id'] == x]['Player'].iloc[0] 
+            if not season_data[season_data['pfr_id'] == x].empty else x
+        )
+        
+        # Display top similar players with names
+        display_df = similar_players_display[['Player_Name', 'Avg']].head(show_similar_players)
+        display_df.columns = ['Player', 'Similarity Score']
+        st.dataframe(display_df)
         
         if show_visualizations:
             # Create similarity heatmap
             fig = models['viz_utils'].create_similarity_heatmap(
-                similar_players.head(10), target_player
+                similar_players.head(10), target_player_name
             )
             st.pyplot(fig)
             plt.close()
@@ -159,25 +200,34 @@ def run_analysis(
         
         with st.spinner("Generating projections..."):
             projection_results = models['projection_model'].project_fantasy_points(
-                target_player, similar_players, season_data
+                target_player_id, similar_players, season_data
             )
         
-        # Display projection summary
-        summary_text = models['viz_utils'].display_projection_summary(
-            projection_results['summary'], target_player
-        )
-        st.markdown(summary_text)
-        
-        if show_visualizations:
-            # Create projection plot
-            fig = models['viz_utils'].create_projection_plot(
-                projection_results['weighted_projections'],
-                projection_results['point_buckets'],
-                target_player,
-                projection_results['num_seasons']
+        # Check if projections were successful
+        if 'error' in projection_results:
+            st.warning(f"⚠️ {projection_results['error']}")
+            st.info("This may happen when similar players don't have enough historical data for projections.")
+        elif projection_results['projection_points'].empty:
+            st.warning("⚠️ No projection data available for the selected player and similar players.")
+        else:
+            # Display projection summary
+            summary_text = models['viz_utils'].display_projection_summary(
+                projection_results['summary'], target_player_name
             )
-            st.pyplot(fig)
-            plt.close()
+            st.markdown(summary_text)
+            
+            if show_visualizations and not projection_results['weighted_projections'].empty:
+                # Create projection plot
+                fig = models['viz_utils'].create_projection_plot(
+                    projection_results['weighted_projections'],
+                    projection_results['point_buckets'],
+                    target_player_name,
+                    projection_results['num_seasons']
+                )
+                st.pyplot(fig)
+                plt.close()
+            elif show_visualizations:
+                st.info("📊 No visualization available due to insufficient projection data.")
     
     # Additional insights
     if not similar_players.empty:
@@ -199,7 +249,7 @@ def run_analysis(
         if show_projections:
             st.write("**Top Similar Players' Historical Performance:**")
             similar_players_stats = season_data[
-                season_data['Player'].isin(top_similar.index)
+                season_data['pfr_id'].isin(top_similar.index)
             ].groupby('Player').agg({
                 'Fantasy_Points': ['mean', 'std'],
                 'Pos_Rank': 'mean'
