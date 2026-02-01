@@ -19,7 +19,7 @@ SKILL_POSITIONS = {"QB", "RB", "WR", "TE"}
 
 # Season range
 MIN_SEASON = 1999
-MAX_SEASON = 2024  # Update when new season data becomes available
+MAX_SEASON = 2024  # Update when new season data becomes available (2025 not yet in nflverse)
 
 
 class DataIngester:

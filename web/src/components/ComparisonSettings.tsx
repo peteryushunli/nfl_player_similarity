@@ -1,79 +1,70 @@
 /**
  * ComparisonSettings component - controls for similarity search.
  *
- * Allows user to configure:
- * - Comparison mode (by season number or by age)
- * - Number of seasons to compare through
- * - Maximum number of results
+ * Features:
+ * - Pill-style toggle buttons for comparison mode
+ * - Styled range slider
+ * - Card container with shadow
  */
 
 interface ComparisonSettingsProps {
-  // Current values
   mode: 'season_number' | 'age';
   throughSeason: number | null;
-  maxResults: number;
-  // Max seasons available (based on selected player)
   maxSeasons: number;
-  // Callbacks when values change
   onModeChange: (mode: 'season_number' | 'age') => void;
   onThroughSeasonChange: (season: number | null) => void;
-  onMaxResultsChange: (max: number) => void;
 }
 
 export function ComparisonSettings({
   mode,
   throughSeason,
-  maxResults,
   maxSeasons,
   onModeChange,
   onThroughSeasonChange,
-  onMaxResultsChange,
 }: ComparisonSettingsProps) {
   return (
-    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="font-semibold text-gray-700 mb-4">Comparison Settings</h3>
-
-      <div className="space-y-4">
-        {/* Comparison Mode */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-2">
-            Compare By
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onModeChange('season_number')}
-              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                mode === 'season_number'
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-              }`}
-            >
-              Season Number
-            </button>
-            <button
-              onClick={() => onModeChange('age')}
-              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                mode === 'age'
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-              }`}
-            >
-              Age
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {mode === 'season_number'
-              ? 'Compares players through their first N seasons'
-              : 'Compares players at the same ages'}
-          </p>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-md p-6 space-y-6">
+      {/* Comparison Mode */}
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-3">
+          Compare By
+        </label>
+        <div className="inline-flex bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => onModeChange('season_number')}
+            className={`px-5 py-2.5 rounded-md text-sm font-semibold transition-all ${
+              mode === 'season_number'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Season Number
+          </button>
+          <button
+            onClick={() => onModeChange('age')}
+            className={`px-5 py-2.5 rounded-md text-sm font-semibold transition-all ${
+              mode === 'age'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Age
+          </button>
         </div>
+        <p className="text-xs text-slate-500 mt-2">
+          {mode === 'season_number'
+            ? 'Compares players through their first N seasons'
+            : 'Compares players at the same ages'}
+        </p>
+      </div>
 
-        {/* Through Season Slider (only for season_number mode) */}
-        {mode === 'season_number' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">
-              Compare Through Season: {throughSeason || maxSeasons}
-            </label>
+      {/* Through Season Slider */}
+      {mode === 'season_number' && (
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-3">
+            Compare Through Season
+          </label>
+          <div className="flex items-center gap-4">
             <input
               type="range"
               min={1}
@@ -81,38 +72,34 @@ export function ComparisonSettings({
               value={throughSeason || maxSeasons}
               onChange={(e) => {
                 const value = parseInt(e.target.value);
-                // If set to max, use null (meaning "all seasons")
                 onThroughSeasonChange(value === maxSeasons ? null : value);
               }}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+              className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full
+                [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md
+                [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
+                [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:rounded-full
+                [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>1</span>
-              <span>{maxSeasons}</span>
-            </div>
+            <span className="min-w-[100px] text-center py-2 px-3 bg-blue-500 text-white font-bold rounded-lg text-sm">
+              {throughSeason || maxSeasons} season{(throughSeason || maxSeasons) !== 1 ? 's' : ''}
+            </span>
           </div>
-        )}
-
-        {/* Max Results */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-2">
-            Number of Results: {maxResults}
-          </label>
-          <input
-            type="range"
-            min={5}
-            max={25}
-            step={5}
-            value={maxResults}
-            onChange={(e) => onMaxResultsChange(parseInt(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-          />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
-            <span>5</span>
-            <span>25</span>
-          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Find players with similar production in their first {throughSeason || maxSeasons} season{(throughSeason || maxSeasons) !== 1 ? 's' : ''}
+          </p>
         </div>
-      </div>
+      )}
+
+      {/* Age mode note */}
+      {mode === 'age' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-sm text-amber-700 font-medium">
+            Age-based comparison is coming soon. Currently using season numbers.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

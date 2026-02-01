@@ -23,6 +23,16 @@ from src.db.database import Database, get_database
 from src.models.similarity_v2 import PlayerSimilarityModel
 
 
+def get_db() -> Database:
+    """
+    Get a database connection.
+
+    Returns:
+        Database instance
+    """
+    return get_database()
+
+
 @lru_cache()
 def get_similarity_model() -> PlayerSimilarityModel:
     """

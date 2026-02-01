@@ -4,6 +4,20 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // Safelist heatmap colors that are dynamically applied
+  safelist: [
+    'bg-green-100',
+    'bg-green-200',
+    'bg-green-300',
+    'bg-green-400',
+    'bg-green-500',
+    'bg-yellow-100',
+    'bg-orange-100',
+    'bg-orange-200',
+    'bg-red-200',
+    'bg-red-300',
+    'text-white',
+  ],
   theme: {
     extend: {
       colors: {

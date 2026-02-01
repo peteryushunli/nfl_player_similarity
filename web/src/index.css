@@ -1,14 +1,15 @@
-/* Tailwind CSS base styles */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind CSS v4 */
+@import "tailwindcss";
 
 /* Custom base styles */
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom utility classes if needed */
-@layer components {
-  /* You can add custom component classes here */
+/* Monospace font for data/stats tables */
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-feature-settings: 'tnum' on; /* tabular numbers for alignment */
 }

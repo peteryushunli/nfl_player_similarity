@@ -8,7 +8,7 @@ These schemas define the shape of data for:
 
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional, Tuple
-from .player import PlayerInfo
+from .player import PlayerInfo, AggregatedStats, SeasonStats
 
 
 class SimilarPlayer(BaseModel):
@@ -20,12 +20,20 @@ class SimilarPlayer(BaseModel):
     """
     gsis_id: str
     name: str
+    position: str
+    first_season: int
+    # Draft info for context
+    draft_year: Optional[int] = None
+    draft_round: Optional[int] = None
+    draft_pick: Optional[int] = None
     # Main score - lower is more similar (0 = identical)
     similarity_score: float
     # Component scores for transparency
     euclidean_score: Optional[float] = None   # Statistical distance
     fantasy_score: Optional[float] = None      # Fantasy point similarity
     draft_score: Optional[float] = None        # Draft capital similarity (higher = more similar)
+    # Aggregated stats for the comparison period
+    stats: Optional[AggregatedStats] = None
 
 
 class SimilarityRequest(BaseModel):
@@ -67,6 +75,8 @@ class SimilarityResponse(BaseModel):
     and metadata about how the comparison was done.
     """
     target_player: PlayerInfo
+    target_stats: AggregatedStats  # Target player's aggregated stats for the comparison period
+    target_seasons: List[SeasonStats]  # Target player's season-by-season stats
     similar_players: List[SimilarPlayer]
     comparison_mode: str  # "age" or "season_number"
     # The range of ages or season numbers that were compared
