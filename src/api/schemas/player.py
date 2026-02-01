@@ -23,6 +23,7 @@ class PlayerSummary(BaseModel):
     first_season: int
     last_season: int
     seasons_played: int
+    headshot_url: Optional[str] = None
 
 
 class PlayerInfo(BaseModel):
@@ -37,6 +38,7 @@ class PlayerInfo(BaseModel):
     first_season: int
     last_season: int
     seasons_played: int
+    headshot_url: Optional[str] = None
     # Draft info is optional - not all players were drafted (UDFAs)
     # or we might not have draft data for older players
     draft_year: Optional[int] = None
@@ -53,13 +55,22 @@ class PlayerSearchResponse(BaseModel):
 class StatPercentiles(BaseModel):
     """Percentile rankings for stats (0-100, higher = better) within position for that season."""
     games_played: Optional[int] = None
+    # Passing
+    pass_completions: Optional[int] = None
+    pass_attempts: Optional[int] = None
     pass_yards: Optional[int] = None
     pass_tds: Optional[int] = None
+    interceptions: Optional[int] = None  # Note: lower is better, but we still calc percentile
+    # Rushing
+    rush_attempts: Optional[int] = None
     rush_yards: Optional[int] = None
     rush_tds: Optional[int] = None
+    # Receiving
+    targets: Optional[int] = None
     receptions: Optional[int] = None
     receiving_yards: Optional[int] = None
     receiving_tds: Optional[int] = None
+    # Fantasy
     fantasy_points: Optional[int] = None
 
 

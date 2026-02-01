@@ -148,14 +148,14 @@ export function PlayerSeasonTable({
                 <StatCell value={season.games_played} percentile={p?.games_played} />
                 {isQB && (
                   <>
-                    <td className="px-3 py-2 text-center text-slate-700 font-mono">{fmt(season.pass_completions)}</td>
-                    <td className="px-3 py-2 text-center text-slate-700 font-mono">{fmt(season.pass_attempts)}</td>
+                    <StatCell value={season.pass_completions} percentile={p?.pass_completions} />
+                    <StatCell value={season.pass_attempts} percentile={p?.pass_attempts} />
                     <td className="px-3 py-2 text-center text-slate-700 font-mono">
                       {compPct(season.pass_completions, season.pass_attempts)}
                     </td>
                     <StatCell value={season.pass_yards} percentile={p?.pass_yards} />
                     <StatCell value={season.pass_tds} percentile={p?.pass_tds} />
-                    <td className="px-3 py-2 text-center text-slate-700 font-mono">{season.interceptions}</td>
+                    <StatCell value={season.interceptions} percentile={p?.interceptions} />
                     <td className="px-3 py-2 text-center text-slate-700 font-mono">
                       {ypa(season.pass_yards, season.pass_attempts)}
                     </td>
@@ -163,14 +163,14 @@ export function PlayerSeasonTable({
                 )}
                 {(isQB || isRB) && (
                   <>
-                    <td className="px-3 py-2 text-center text-slate-700 font-mono">{season.rush_attempts}</td>
+                    <StatCell value={season.rush_attempts} percentile={p?.rush_attempts} />
                     <StatCell value={season.rush_yards} percentile={p?.rush_yards} />
                     <StatCell value={season.rush_tds} percentile={p?.rush_tds} />
                   </>
                 )}
                 {(isRB || isWR) && (
                   <>
-                    <td className="px-3 py-2 text-center text-slate-700 font-mono">{season.targets}</td>
+                    <StatCell value={season.targets} percentile={p?.targets} />
                     <StatCell value={season.receptions} percentile={p?.receptions} />
                     <StatCell value={season.receiving_yards} percentile={p?.receiving_yards} />
                     <StatCell value={season.receiving_tds} percentile={p?.receiving_tds} />
@@ -233,7 +233,7 @@ export function PlayerSeasonTable({
       <div className="bg-slate-100 px-4 py-3 border-t border-slate-300">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-slate-600">
-            Percentile among {position}s that season
+            Percentile among qualified {position}s that season
           </span>
           <div className="flex items-center gap-0.5">
             <span className="px-2 py-1 text-xs font-medium rounded-l" style={{ backgroundColor: '#fca5a5' }}>0</span>

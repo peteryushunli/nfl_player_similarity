@@ -10,6 +10,7 @@
 
 import type { SimilarPlayer, AggregatedStats } from '../types';
 import { StatsComparisonTable } from './StatsComparisonTable';
+import { PlayerHeadshot } from './PlayerHeadshot';
 
 interface SimilarPlayerCardProps {
   player: SimilarPlayer;
@@ -28,9 +29,13 @@ const positionColors: Record<string, string> = {
   TE: 'bg-purple-600 text-white',
 };
 
-function formatDraft(round: number | null, pick: number | null): string {
+function formatDraft(round: number | null, pick: number | null, positionPick: number | null, position: string): string {
   if (!round || !pick) return 'Undrafted';
-  return `Rd ${round}, Pick ${pick}`;
+  const draftPart = `Rd ${round}, Pick ${pick}`;
+  if (positionPick) {
+    return `${draftPart} (${position}${positionPick})`;
+  }
+  return draftPart;
 }
 
 export function SimilarPlayerCard({
@@ -66,6 +71,8 @@ export function SimilarPlayerCard({
             <span className="text-4xl font-black text-blue-600">
               #{rank}
             </span>
+            {/* Player headshot */}
+            <PlayerHeadshot headshotUrl={player.headshot_url} name={player.name} size="md" />
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-lg font-bold text-slate-900">{player.name}</h4>
@@ -74,7 +81,7 @@ export function SimilarPlayerCard({
                 </span>
               </div>
               <p className="text-sm text-slate-500">
-                {player.first_season} • {formatDraft(player.draft_round, player.draft_pick)}
+                {player.first_season} • {formatDraft(player.draft_round, player.draft_pick, player.draft_position_pick, player.position)}
               </p>
             </div>
           </div>

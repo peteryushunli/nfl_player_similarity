@@ -16,6 +16,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
 import { PlayerDetailPage } from './pages/PlayerDetailPage';
+import { MethodologyPage } from './pages/MethodologyPage';
 
 // Create a QueryClient instance for TanStack Query
 // This manages caching and request deduplication
@@ -45,6 +46,9 @@ function App() {
 
             {/* Player detail page - :gsisId is a URL parameter */}
             <Route path="/player/:gsisId" element={<PlayerDetailPage />} />
+
+            {/* Methodology page - explains how similarity works */}
+            <Route path="/methodology" element={<MethodologyPage />} />
           </Routes>
         </Layout>
       </BrowserRouter>

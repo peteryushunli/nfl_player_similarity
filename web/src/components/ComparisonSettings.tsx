@@ -3,23 +3,30 @@
  *
  * Features:
  * - Pill-style toggle buttons for comparison mode
- * - Styled range slider
+ * - Pill-style toggle buttons for scoring format
+ * - Styled range slider for season/age selection
  * - Card container with shadow
  */
 
+import type { ScoringFormat } from '../types';
+
 interface ComparisonSettingsProps {
   mode: 'season_number' | 'age';
+  scoringFormat: ScoringFormat;
   throughSeason: number | null;
   maxSeasons: number;
   onModeChange: (mode: 'season_number' | 'age') => void;
+  onScoringFormatChange: (format: ScoringFormat) => void;
   onThroughSeasonChange: (season: number | null) => void;
 }
 
 export function ComparisonSettings({
   mode,
+  scoringFormat,
   throughSeason,
   maxSeasons,
   onModeChange,
+  onScoringFormatChange,
   onThroughSeasonChange,
 }: ComparisonSettingsProps) {
   return (
@@ -58,6 +65,50 @@ export function ComparisonSettings({
         </p>
       </div>
 
+      {/* Scoring Format */}
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-3">
+          Scoring Format
+        </label>
+        <div className="inline-flex bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => onScoringFormatChange('standard')}
+            className={`px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${
+              scoringFormat === 'standard'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Standard
+          </button>
+          <button
+            onClick={() => onScoringFormatChange('half_ppr')}
+            className={`px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${
+              scoringFormat === 'half_ppr'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Half PPR
+          </button>
+          <button
+            onClick={() => onScoringFormatChange('ppr')}
+            className={`px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${
+              scoringFormat === 'ppr'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Full PPR
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          {scoringFormat === 'standard' && 'No points per reception'}
+          {scoringFormat === 'half_ppr' && '0.5 points per reception'}
+          {scoringFormat === 'ppr' && '1.0 points per reception'}
+        </p>
+      </div>
+
       {/* Through Season Slider */}
       {mode === 'season_number' && (
         <div>
@@ -92,11 +143,12 @@ export function ComparisonSettings({
         </div>
       )}
 
-      {/* Age mode note */}
+      {/* Age mode info */}
       {mode === 'age' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-sm text-amber-700 font-medium">
-            Age-based comparison is coming soon. Currently using season numbers.
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-700">
+            <span className="font-medium">Age mode:</span> Compares players at the same ages in their careers.
+            This is useful for comparing players who entered the league at different ages.
           </p>
         </div>
       )}

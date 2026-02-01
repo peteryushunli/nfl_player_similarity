@@ -53,7 +53,8 @@ def search_players(
             position=row["position"],
             first_season=int(row["first_season"]),
             last_season=int(row["last_season"]),
-            seasons_played=int(row["seasons_played"])
+            seasons_played=int(row["seasons_played"]),
+            headshot_url=row.get("headshot_url")
         )
         for _, row in results_df.iterrows()
     ]
@@ -94,6 +95,7 @@ def get_player(
         first_season=player_info.first_season,
         last_season=player_info.last_season,
         seasons_played=player_info.seasons_played,
+        headshot_url=player_info.headshot_url,
         draft_year=int(player_info.draft_year) if player_info.draft_year else None,
         draft_round=int(player_info.draft_round) if player_info.draft_round else None,
         draft_pick=int(player_info.draft_pick) if player_info.draft_pick else None,

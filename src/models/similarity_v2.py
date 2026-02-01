@@ -66,6 +66,7 @@ class PlayerInfo:
     first_season: int
     last_season: int
     seasons_played: int
+    headshot_url: Optional[str] = None
     draft_year: Optional[int] = None
     draft_round: Optional[int] = None
     draft_pick: Optional[int] = None
@@ -107,10 +108,16 @@ class PlayerSimilarityModel:
             return self._stats_cache, self._players_cache
 
         with self.db.get_connection() as conn:
-            # Load seasons with player info
+            # Load seasons with player info, calculating age from birth_date
             self._stats_cache = pd.read_sql("""
                 SELECT
-                    s.gsis_id, s.season, s.season_number, s.age, s.team,
+                    s.gsis_id, s.season, s.season_number,
+                    CASE
+                        WHEN p.birth_date IS NOT NULL
+                        THEN s.season - CAST(SUBSTR(p.birth_date, 1, 4) AS INTEGER)
+                        ELSE NULL
+                    END as age,
+                    s.team,
                     s.games_played, s.pass_yards, s.pass_tds, s.interceptions,
                     s.rush_yards, s.rush_tds, s.receptions, s.receiving_yards,
                     s.receiving_tds, s.targets, s.fantasy_points_ppr,
@@ -121,10 +128,11 @@ class PlayerSimilarityModel:
                 JOIN players p ON s.gsis_id = p.gsis_id
             """, conn)
 
-            # Load players with draft info
+            # Load players with draft info and headshot
             self._players_cache = pd.read_sql("""
                 SELECT
                     p.gsis_id, p.name, p.position, p.first_season, p.last_season,
+                    p.headshot_url,
                     d.draft_year, d.round as draft_round, d.pick as draft_pick,
                     d.position_pick as draft_position_pick
                 FROM players p
@@ -149,6 +157,7 @@ class PlayerSimilarityModel:
             first_season=row['first_season'],
             last_season=row['last_season'],
             seasons_played=row['last_season'] - row['first_season'] + 1,
+            headshot_url=row.get('headshot_url'),
             draft_year=row.get('draft_year'),
             draft_round=row.get('draft_round'),
             draft_pick=row.get('draft_pick'),
@@ -175,7 +184,7 @@ class PlayerSimilarityModel:
         results = players_df[mask].copy()
         results['seasons_played'] = results['last_season'] - results['first_season'] + 1
 
-        return results[['gsis_id', 'name', 'position', 'first_season', 'last_season', 'seasons_played']].sort_values('name')
+        return results[['gsis_id', 'name', 'position', 'first_season', 'last_season', 'seasons_played', 'headshot_url']].sort_values('name')
 
     def _normalize_stats(self, df: pd.DataFrame, position: str) -> pd.DataFrame:
         """
@@ -447,12 +456,25 @@ class PlayerSimilarityModel:
             f"using {mode} range {comparison_min}-{comparison_max}"
         )
 
+        # Get players who started their career before the target player
+        # This ensures we only compare against "established" players, not contemporaries
+        target_first_season = target_info.first_season
+        earlier_career_players = players_df[
+            players_df['first_season'] < target_first_season
+        ]['gsis_id'].tolist()
+
+        logger.info(
+            f"Filtering to players who started before {target_first_season} "
+            f"({len(earlier_career_players)} players)"
+        )
+
         # Get peer players
         if mode == 'season_number':
             # For season_number mode: get peers who have data for ALL comparison seasons
             # First, find players with data for each season number in range
             peer_stats = stats_df[
                 (stats_df['gsis_id'] != gsis_id) &
+                (stats_df['gsis_id'].isin(earlier_career_players)) &  # Only earlier players
                 (stats_df['position'] == position) &
                 (stats_df[comparison_col] >= comparison_min) &
                 (stats_df[comparison_col] <= comparison_max)
@@ -466,6 +488,7 @@ class PlayerSimilarityModel:
             # Age mode - just need overlapping ages
             peer_stats = stats_df[
                 (stats_df['gsis_id'] != gsis_id) &
+                (stats_df['gsis_id'].isin(earlier_career_players)) &  # Only earlier players
                 (stats_df['position'] == position) &
                 (stats_df[comparison_col] >= comparison_min) &
                 (stats_df[comparison_col] <= comparison_max)

@@ -16,12 +16,14 @@ export interface PlayerSummary {
   first_season: number;
   last_season: number;
   seasons_played: number;
+  headshot_url: string | null;
 }
 
 /**
  * Detailed player information including draft data.
  */
 export interface PlayerInfo extends PlayerSummary {
+  headshot_url: string | null;
   draft_year: number | null;
   draft_round: number | null;
   draft_pick: number | null;
@@ -33,13 +35,22 @@ export interface PlayerInfo extends PlayerSummary {
  */
 export interface StatPercentiles {
   games_played: number | null;
+  // Passing
+  pass_completions: number | null;
+  pass_attempts: number | null;
   pass_yards: number | null;
   pass_tds: number | null;
+  interceptions: number | null;
+  // Rushing
+  rush_attempts: number | null;
   rush_yards: number | null;
   rush_tds: number | null;
+  // Receiving
+  targets: number | null;
   receptions: number | null;
   receiving_yards: number | null;
   receiving_tds: number | null;
+  // Fantasy
   fantasy_points: number | null;
 }
 
@@ -103,6 +114,15 @@ export interface AggregatedStats {
 }
 
 /**
+ * A single data point for career trajectory chart.
+ */
+export interface CareerDataPoint {
+  season_number: number;
+  season: number;  // actual year
+  fantasy_points: number;  // half PPR
+}
+
+/**
  * A single similar player with their similarity scores.
  * Lower similarity_score = more similar to the target.
  */
@@ -111,15 +131,23 @@ export interface SimilarPlayer {
   name: string;
   position: string;
   first_season: number;
+  headshot_url: string | null;
   draft_year: number | null;
   draft_round: number | null;
   draft_pick: number | null;
+  draft_position_pick: number | null;  // e.g., 1st QB taken, 2nd RB taken
   similarity_score: number;
   euclidean_score: number | null;
   fantasy_score: number | null;
   draft_score: number | null;
   stats: AggregatedStats | null;
+  career_data: CareerDataPoint[];  // Full career trajectory for chart
 }
+
+/**
+ * Scoring format types.
+ */
+export type ScoringFormat = 'standard' | 'half_ppr' | 'ppr';
 
 /**
  * Request body for finding similar players.
@@ -127,6 +155,7 @@ export interface SimilarPlayer {
 export interface SimilarityRequest {
   gsis_id: string;
   mode: 'season_number' | 'age';
+  scoring_format: ScoringFormat;
   max_results: number;
   through_season: number | null;
 }
@@ -138,8 +167,10 @@ export interface SimilarityResponse {
   target_player: PlayerInfo;
   target_stats: AggregatedStats;
   target_seasons: SeasonStats[];
+  target_career_data: CareerDataPoint[];  // Full career trajectory for chart
   similar_players: SimilarPlayer[];
   comparison_mode: string;
+  scoring_format: ScoringFormat;
   comparison_range: [number | null, number | null];
 }
 
