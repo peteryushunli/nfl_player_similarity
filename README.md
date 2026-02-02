@@ -1,96 +1,101 @@
 # NFL Player Similarity Analysis
 
-A comprehensive fantasy football analytics platform that identifies similar NFL players based on statistical profiles and provides fantasy point projections.
+A fantasy football analytics platform that identifies similar NFL players based on statistical profiles and career trajectories.
 
-## 🏈 Features
+## Features
 
-- **Player Similarity Analysis**: Find players with similar statistical profiles
-- **Fantasy Point Projections**: Weighted projections based on similar players' historical performance
-- **Draft Position Integration**: Incorporates draft position data for enhanced similarity scoring
-- **Interactive Visualizations**: Box plots showing projected fantasy points and positional rankings
-- **Streamlit Web Interface**: User-friendly web application for easy interaction
+- **Player Similarity Analysis**: Find players with similar statistical profiles using weighted metrics
+- **Career Trajectory Comparison**: Visualize how players' careers compare year-over-year
+- **Fantasy Point Projections**: Projections based on similar players' historical performance
+- **Player Headshots**: Visual player identification
+- **Interactive Web Interface**: Modern React frontend with search and filtering
 
-## 🚀 Quick Start
+## Tech Stack
+
+- **Backend**: FastAPI (Python)
+- **Frontend**: React + TypeScript + Vite
+- **Database**: SQLite
+- **Styling**: Tailwind CSS
+
+## Quick Start
 
 ### Prerequisites
 
+- Python 3.10+
+- Node.js 18+
+
+### Backend Setup
+
 ```bash
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Run the API server
+uvicorn src.api.main:app --reload --port 8000
 ```
 
-### Running the Application
+The API will be available at http://localhost:8000 with documentation at http://localhost:8000/docs.
+
+### Frontend Setup
 
 ```bash
-streamlit run src/app/main.py
+cd web
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
 ```
 
-## 📁 Project Structure
+The frontend will be available at http://localhost:5173.
+
+### Production Build
+
+```bash
+# Build the frontend
+cd web && npm run build
+
+# Run the API (serves both API and frontend)
+uvicorn src.api.main:app --port 8000
+```
+
+## Project Structure
 
 ```
 nfl_player_similarity/
 ├── src/
-│   ├── app/                 # Streamlit application
-│   ├── core/                # Core business logic
-│   ├── data/                # Data loading and processing
-│   ├── models/              # Similarity and projection models
-│   └── utils/               # Utility functions
-├── data/
-│   ├── raw/                 # Raw data files
-│   └── processed/           # Processed data files
-├── notebooks/               # Jupyter notebooks for analysis
-├── tests/                   # Unit tests
-├── docs/                    # Documentation
-├── requirements.txt          # Python dependencies
-├── setup.py                 # Package setup
-└── README.md               # This file
+│   ├── api/                # FastAPI application
+│   │   ├── main.py         # App entry point
+│   │   ├── routers/        # API route handlers
+│   │   └── schemas/        # Pydantic models
+│   ├── db/                 # Database layer
+│   ├── models/             # Similarity and projection logic
+│   ├── data/               # Data loading utilities
+│   └── app/                # Legacy Streamlit app
+├── web/                    # React frontend
+│   └── src/
+│       ├── components/     # React components
+│       ├── api/            # API client
+│       └── types/          # TypeScript types
+├── data/                   # Data files
+├── notebooks/              # Jupyter notebooks for analysis
+└── tests/                  # Unit tests
 ```
 
-## 🔧 Development
+## API Endpoints
 
-### Setting up the development environment
+- `GET /api/v1/players/` - List all players
+- `GET /api/v1/players/search` - Search players by name
+- `GET /api/v1/similarity/{player_id}` - Get similar players
+- `GET /health` - Health check
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd nfl_player_similarity
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install in development mode
-pip install -e .
-```
-
-### Running tests
+## Development
 
 ```bash
+# Run tests
 pytest tests/
+
+# Run linting
+ruff check src/
 ```
-
-## 📊 Data Sources
-
-- **Seasonal Statistics**: NFL player performance data (2000-2022)
-- **Draft Data**: NFL draft information (1994-2022)
-- **Player Bios**: Player biographical information (2019-2023)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- NFL data sources for providing comprehensive player statistics
-- Streamlit for the web application framework
-- The fantasy football community for inspiration and feedback 

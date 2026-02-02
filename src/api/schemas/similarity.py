@@ -16,6 +16,7 @@ class CareerDataPoint(BaseModel):
     season_number: int
     season: int  # actual year
     fantasy_points: float  # half PPR
+    fantasy_position_rank: Optional[int] = None  # Position rank for that season
 
 
 class SimilarPlayer(BaseModel):

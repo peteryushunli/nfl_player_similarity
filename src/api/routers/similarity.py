@@ -40,6 +40,13 @@ def calc_fantasy_points(ppr_points: float, receptions: int, scoring_format: str 
 
 def get_career_data(db: Database, gsis_id: str, scoring_format: str = "half_ppr") -> List[CareerDataPoint]:
     """Get full career fantasy points data for a player (all seasons)."""
+    # First get the player's position
+    position_query = "SELECT position FROM players WHERE gsis_id = ?"
+    with db.get_connection() as conn:
+        cursor = conn.execute(position_query, [gsis_id])
+        pos_row = cursor.fetchone()
+    position = pos_row["position"] if pos_row else None
+
     query = """
         SELECT
             season_number,
@@ -54,15 +61,41 @@ def get_career_data(db: Database, gsis_id: str, scoring_format: str = "half_ppr"
         cursor = conn.execute(query, [gsis_id])
         rows = cursor.fetchall()
 
+    # Determine the scoring adjustment for rank calculations
+    if scoring_format == "ppr":
+        scoring_adjustment = "0"
+    elif scoring_format == "standard":
+        scoring_adjustment = "s.receptions"
+    else:  # half_ppr
+        scoring_adjustment = "0.5 * s.receptions"
+
     result = []
     for row in rows:
         ppr = float(row["fantasy_points_ppr"] or 0)
         rec = int(row["receptions"] or 0)
         fp = calc_fantasy_points(ppr, rec, scoring_format)
+
+        # Calculate position rank for this season
+        pos_rank = None
+        if position:
+            pos_rank_query = f"""
+                SELECT COUNT(*) + 1 as rank
+                FROM seasons s
+                JOIN players p ON s.gsis_id = p.gsis_id
+                WHERE s.season = ?
+                  AND p.position = ?
+                  AND (s.fantasy_points_ppr - {scoring_adjustment}) > ?
+            """
+            with db.get_connection() as conn:
+                cursor = conn.execute(pos_rank_query, [row["season"], position, fp])
+                rank_row = cursor.fetchone()
+                pos_rank = rank_row["rank"] if rank_row else None
+
         result.append(CareerDataPoint(
             season_number=row["season_number"],
             season=row["season"],
-            fantasy_points=fp
+            fantasy_points=fp,
+            fantasy_position_rank=pos_rank
         ))
     return result
 

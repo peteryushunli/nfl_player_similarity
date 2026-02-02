@@ -2,13 +2,16 @@
  * CareerTrajectoryChart - Line chart showing fantasy point trajectories.
  *
  * Features:
+ * - Tabbed interface: Fantasy Points vs Position Rank
  * - Target player shown as thick line
  * - Similar players shown as thinner lines with distinct colors
  * - Solid lines for seasons within comparison range
  * - Dashed lines for seasons beyond comparison range (projections)
  * - Interactive tooltips
+ * - Position Rank view has inverted Y-axis (rank 1 at top)
  */
 
+import { useState } from 'react';
 import {
   LineChart,
   Line,
@@ -26,7 +29,10 @@ interface CareerTrajectoryChartProps {
   targetCareerData: CareerDataPoint[];
   similarPlayers: SimilarPlayer[];
   comparisonEndSeason: number;  // Season number where comparison ends
+  position: string;  // Player position for determining Y-axis range
 }
+
+type ChartView = 'fantasy_points' | 'position_rank';
 
 // Color palette for similar players (distinct, visible colors)
 const PLAYER_COLORS = [
@@ -39,12 +45,37 @@ const PLAYER_COLORS = [
 
 const TARGET_COLOR = '#0f172a'; // slate-900
 
+// Get a reasonable Y-axis max for position rank based on position
+function getPositionRankMax(position: string): number {
+  switch (position) {
+    case 'QB': return 32;  // ~32 starting QBs
+    case 'RB': return 48;  // More RBs rostered
+    case 'WR': return 60;  // Most WRs rostered
+    case 'TE': return 32;  // Fewer TEs
+    default: return 48;
+  }
+}
+
+// Get Y-axis ticks for position rank (always include 1 at top)
+function getPositionRankTicks(position: string): number[] {
+  switch (position) {
+    case 'QB': return [1, 8, 16, 24, 32];
+    case 'RB': return [1, 12, 24, 36, 48];
+    case 'WR': return [1, 15, 30, 45, 60];
+    case 'TE': return [1, 8, 16, 24, 32];
+    default: return [1, 12, 24, 36, 48];
+  }
+}
+
 export function CareerTrajectoryChart({
   targetName,
   targetCareerData,
   similarPlayers,
   comparisonEndSeason,
+  position,
 }: CareerTrajectoryChartProps) {
+  const [activeView, setActiveView] = useState<ChartView>('fantasy_points');
+
   // Build unified data structure for the chart
   // Each player gets TWO data keys: one for solid (within range) and one for dashed (beyond range)
   const top5Players = similarPlayers.slice(0, 5);
@@ -54,12 +85,17 @@ export function CareerTrajectoryChart({
     ...top5Players.map(p => p.career_data?.length || 0)
   );
 
-  // Create data points for each season number
-  const chartData: Record<string, number | string | null>[] = [];
+  // Create data points for each season number (for fantasy points view)
+  const fantasyChartData: Record<string, number | string | null>[] = [];
+  // Create data points for position rank view
+  const rankChartData: Record<string, number | string | null>[] = [];
 
   for (let seasonNum = 1; seasonNum <= maxSeasons; seasonNum++) {
     const isWithinComparison = seasonNum <= comparisonEndSeason;
-    const dataPoint: Record<string, number | string | null> = {
+    const fantasyDataPoint: Record<string, number | string | null> = {
+      season_number: seasonNum,
+    };
+    const rankDataPoint: Record<string, number | string | null> = {
       season_number: seasonNum,
     };
 
@@ -67,13 +103,22 @@ export function CareerTrajectoryChart({
     const targetPoint = targetCareerData.find(d => d.season_number === seasonNum);
     if (targetPoint) {
       if (isWithinComparison) {
-        dataPoint[`${targetName}_solid`] = targetPoint.fantasy_points;
+        fantasyDataPoint[`${targetName}_solid`] = targetPoint.fantasy_points;
+        if (targetPoint.fantasy_position_rank != null) {
+          rankDataPoint[`${targetName}_solid`] = targetPoint.fantasy_position_rank;
+        }
         // Add overlap point for continuity
         if (seasonNum === comparisonEndSeason) {
-          dataPoint[`${targetName}_dashed`] = targetPoint.fantasy_points;
+          fantasyDataPoint[`${targetName}_dashed`] = targetPoint.fantasy_points;
+          if (targetPoint.fantasy_position_rank != null) {
+            rankDataPoint[`${targetName}_dashed`] = targetPoint.fantasy_position_rank;
+          }
         }
       } else {
-        dataPoint[`${targetName}_dashed`] = targetPoint.fantasy_points;
+        fantasyDataPoint[`${targetName}_dashed`] = targetPoint.fantasy_points;
+        if (targetPoint.fantasy_position_rank != null) {
+          rankDataPoint[`${targetName}_dashed`] = targetPoint.fantasy_position_rank;
+        }
       }
     }
 
@@ -82,19 +127,33 @@ export function CareerTrajectoryChart({
       const playerPoint = player.career_data?.find(d => d.season_number === seasonNum);
       if (playerPoint) {
         if (isWithinComparison) {
-          dataPoint[`${player.name}_solid`] = playerPoint.fantasy_points;
+          fantasyDataPoint[`${player.name}_solid`] = playerPoint.fantasy_points;
+          if (playerPoint.fantasy_position_rank != null) {
+            rankDataPoint[`${player.name}_solid`] = playerPoint.fantasy_position_rank;
+          }
           // Add overlap point for continuity
           if (seasonNum === comparisonEndSeason) {
-            dataPoint[`${player.name}_dashed`] = playerPoint.fantasy_points;
+            fantasyDataPoint[`${player.name}_dashed`] = playerPoint.fantasy_points;
+            if (playerPoint.fantasy_position_rank != null) {
+              rankDataPoint[`${player.name}_dashed`] = playerPoint.fantasy_position_rank;
+            }
           }
         } else {
-          dataPoint[`${player.name}_dashed`] = playerPoint.fantasy_points;
+          fantasyDataPoint[`${player.name}_dashed`] = playerPoint.fantasy_points;
+          if (playerPoint.fantasy_position_rank != null) {
+            rankDataPoint[`${player.name}_dashed`] = playerPoint.fantasy_position_rank;
+          }
         }
       }
     });
 
-    chartData.push(dataPoint);
+    fantasyChartData.push(fantasyDataPoint);
+    rankChartData.push(rankDataPoint);
   }
+
+  const chartData = activeView === 'fantasy_points' ? fantasyChartData : rankChartData;
+  const yAxisLabel = activeView === 'fantasy_points' ? 'Fantasy Points' : 'Position Rank';
+  const tooltipUnit = activeView === 'fantasy_points' ? 'pts' : '';
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; value: number; color: string }>; label?: number }) => {
@@ -105,12 +164,21 @@ export function CareerTrajectoryChart({
     payload.forEach(p => {
       if (p.value === null || p.value === undefined) return;
       const playerName = p.dataKey.replace(/_solid$/, '').replace(/_dashed$/, '');
-      if (!playerValues[playerName] || p.value > playerValues[playerName].value) {
+      // For fantasy points, higher is better; for rank, lower is better
+      const shouldReplace = activeView === 'fantasy_points'
+        ? (!playerValues[playerName] || p.value > playerValues[playerName].value)
+        : (!playerValues[playerName] || p.value < playerValues[playerName].value);
+      if (shouldReplace) {
         playerValues[playerName] = { value: p.value, color: p.color };
       }
     });
 
-    const entries = Object.entries(playerValues).sort((a, b) => b[1].value - a[1].value);
+    // Sort: for fantasy points, higher first; for rank, lower first
+    const entries = Object.entries(playerValues).sort((a, b) =>
+      activeView === 'fantasy_points'
+        ? b[1].value - a[1].value
+        : a[1].value - b[1].value
+    );
 
     return (
       <div className="bg-white border border-slate-200 shadow-lg rounded-lg p-3">
@@ -123,7 +191,10 @@ export function CareerTrajectoryChart({
         {entries.map(([name, data], idx) => (
           <p key={idx} className="text-sm" style={{ color: data.color }}>
             <span className="font-medium">{name}:</span>{' '}
-            {data.value?.toFixed(1)} pts
+            {activeView === 'fantasy_points'
+              ? `${data.value?.toFixed(1)} ${tooltipUnit}`
+              : `#${data.value}`
+            }
           </p>
         ))}
       </div>
@@ -154,19 +225,48 @@ export function CareerTrajectoryChart({
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-md p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-1.5 h-8 bg-blue-500 rounded-full" />
-        <div>
-          <h3 className="text-xl font-bold text-slate-800">Career Trajectory</h3>
-          <p className="text-sm text-slate-500">
-            Half-PPR fantasy points by season
-          </p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-8 bg-blue-500 rounded-full" />
+          <div>
+            <h3 className="text-xl font-bold text-slate-800">Career Trajectory</h3>
+            <p className="text-sm text-slate-500">
+              {activeView === 'fantasy_points'
+                ? 'Half-PPR fantasy points by season'
+                : `${position} position rank by season`
+              }
+            </p>
+          </div>
+        </div>
+
+        {/* Tab toggle */}
+        <div className="inline-flex bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => setActiveView('fantasy_points')}
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              activeView === 'fantasy_points'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Fantasy Points
+          </button>
+          <button
+            onClick={() => setActiveView('position_rank')}
+            className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              activeView === 'position_rank'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Position Rank
+          </button>
         </div>
       </div>
 
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="season_number"
@@ -179,7 +279,11 @@ export function CareerTrajectoryChart({
               tick={{ fill: '#64748b', fontSize: 12 }}
               axisLine={{ stroke: '#cbd5e1' }}
               tickLine={{ stroke: '#cbd5e1' }}
-              label={{ value: 'Fantasy Points', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+              label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', fill: '#64748b' }}
+              reversed={activeView === 'position_rank'}
+              domain={activeView === 'position_rank' ? [1, getPositionRankMax(position)] : ['auto', 'auto']}
+              ticks={activeView === 'position_rank' ? getPositionRankTicks(position) : undefined}
+              allowDataOverflow={activeView === 'position_rank'}
             />
             <Tooltip content={<CustomTooltip />} />
 

@@ -120,6 +120,7 @@ export interface CareerDataPoint {
   season_number: number;
   season: number;  // actual year
   fantasy_points: number;  // half PPR
+  fantasy_position_rank: number | null;  // Position rank for that season
 }
 
 /**
