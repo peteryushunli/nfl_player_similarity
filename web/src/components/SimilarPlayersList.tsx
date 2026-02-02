@@ -195,6 +195,7 @@ export function SimilarPlayersList({
         targetCareerData={data.target_career_data}
         similarPlayers={displayedPlayers}
         comparisonEndSeason={data.comparison_range[1] || data.target_seasons.length}
+        position={targetPosition}
       />
 
       {/* Detailed player cards section - foldable */}

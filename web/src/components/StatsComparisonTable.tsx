@@ -1,8 +1,8 @@
 /**
  * StatsComparisonTable - Clean tabular display of stats comparison.
  *
- * Shows target player stats vs comparison player stats in a clean table format
- * with categories (Passing, Rushing, Receiving, Fantasy).
+ * Shows stats as columns with players as rows, plus difference rows
+ * showing absolute and percent differences.
  */
 
 import type { AggregatedStats } from '../types';
@@ -15,52 +15,43 @@ interface StatsComparisonTableProps {
   position: string;
 }
 
-// Category header row
-function CategoryRow({ label }: { label: string }) {
-  return (
-    <tr className="bg-gray-50">
-      <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">
-        {label}
-      </td>
-    </tr>
-  );
+// Helper to format values
+function formatValue(v: number, format: 'number' | 'decimal' = 'number'): string {
+  if (format === 'decimal') return v.toFixed(1);
+  return v.toLocaleString();
 }
 
-// Stat row with optional diff highlighting
-function StatRow({
-  label,
-  targetValue,
-  compValue,
-  format = 'number',
-}: {
+// Helper to format diff with sign
+function formatDiff(diff: number, format: 'number' | 'decimal' = 'number'): string {
+  if (diff === 0) return '—';
+  const sign = diff > 0 ? '+' : '';
+  return `${sign}${formatValue(diff, format)}`;
+}
+
+// Helper to format percent diff
+function formatPctDiff(targetValue: number, compValue: number): string {
+  if (targetValue === 0) {
+    if (compValue === 0) return '—';
+    return compValue > 0 ? '+∞%' : '-∞%';
+  }
+  const pctDiff = ((compValue - targetValue) / Math.abs(targetValue)) * 100;
+  if (pctDiff === 0) return '—';
+  const sign = pctDiff > 0 ? '+' : '';
+  return `${sign}${pctDiff.toFixed(1)}%`;
+}
+
+// Helper to get diff color class
+function getDiffColor(diff: number): string {
+  if (diff > 0) return 'text-green-600';
+  if (diff < 0) return 'text-red-600';
+  return 'text-gray-400';
+}
+
+interface StatConfig {
+  key: string;
   label: string;
-  targetValue: number;
-  compValue: number;
-  format?: 'number' | 'decimal';
-}) {
-  const diff = compValue - targetValue;
-  const diffColor = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-400';
-  const diffSign = diff > 0 ? '+' : '';
-
-  const formatValue = (v: number) => {
-    if (format === 'decimal') return v.toFixed(1);
-    return v.toLocaleString();
-  };
-
-  return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="px-3 py-2 text-sm text-gray-600">{label}</td>
-      <td className="px-3 py-2 text-sm text-gray-800 text-right font-medium">
-        {formatValue(targetValue)}
-      </td>
-      <td className="px-3 py-2 text-sm text-gray-800 text-right font-medium">
-        {formatValue(compValue)}
-      </td>
-      <td className={`px-3 py-2 text-sm text-right ${diffColor}`}>
-        {diff !== 0 ? `${diffSign}${formatValue(diff)}` : '—'}
-      </td>
-    </tr>
-  );
+  format: 'number' | 'decimal';
+  getValue: (stats: AggregatedStats) => number;
 }
 
 export function StatsComparisonTable({
@@ -74,75 +65,124 @@ export function StatsComparisonTable({
   const isRB = position === 'RB';
   const isWR = position === 'WR' || position === 'TE';
 
-  // Shorten names for header if needed
+  // Build stat configs based on position
+  const stats: StatConfig[] = [
+    { key: 'games', label: 'G', format: 'number', getValue: (s) => s.games_played },
+  ];
+
+  if (isQB) {
+    stats.push(
+      { key: 'pass_yards', label: 'Pass Yds', format: 'number', getValue: (s) => s.pass_yards },
+      { key: 'pass_tds', label: 'Pass TD', format: 'number', getValue: (s) => s.pass_tds },
+      { key: 'pass_comp', label: 'Cmp', format: 'number', getValue: (s) => s.pass_completions },
+      { key: 'pass_att', label: 'Att', format: 'number', getValue: (s) => s.pass_attempts },
+      { key: 'ints', label: 'INT', format: 'number', getValue: (s) => s.interceptions },
+    );
+  }
+
+  if (isQB || isRB) {
+    stats.push(
+      { key: 'rush_yards', label: 'Rush Yds', format: 'number', getValue: (s) => s.rush_yards },
+      { key: 'rush_tds', label: 'Rush TD', format: 'number', getValue: (s) => s.rush_tds },
+      { key: 'rush_att', label: 'Carries', format: 'number', getValue: (s) => s.rush_attempts },
+    );
+  }
+
+  if (isRB || isWR) {
+    stats.push(
+      { key: 'rec_yards', label: 'Rec Yds', format: 'number', getValue: (s) => s.receiving_yards },
+      { key: 'rec_tds', label: 'Rec TD', format: 'number', getValue: (s) => s.receiving_tds },
+      { key: 'rec', label: 'Rec', format: 'number', getValue: (s) => s.receptions },
+      { key: 'targets', label: 'Tgt', format: 'number', getValue: (s) => s.targets },
+    );
+  }
+
+  stats.push(
+    { key: 'fantasy', label: 'Fantasy', format: 'decimal', getValue: (s) => s.fantasy_points },
+  );
+
+  // Shorten names for display
   const shortTarget = targetName.split(' ').pop() || targetName;
   const shortComp = compName.split(' ').pop() || compName;
 
   return (
-    <table className="w-full text-left">
-      <thead>
-        <tr className="border-b-2 border-gray-200">
-          <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide w-1/3">
-            Stat
-          </th>
-          <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right w-1/5">
-            {shortTarget}
-          </th>
-          <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right w-1/5">
-            {shortComp}
-          </th>
-          <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right w-1/5">
-            Diff
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {/* Games */}
-        <CategoryRow label="Games" />
-        <StatRow label="Games Played" targetValue={targetStats.games_played} compValue={compStats.games_played} />
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b-2 border-gray-200">
+            <th className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky left-0 bg-white">
+              Player
+            </th>
+            {stats.map((stat) => (
+              <th
+                key={stat.key}
+                className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right whitespace-nowrap"
+              >
+                {stat.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {/* Target player row */}
+          <tr className="border-b border-gray-100 bg-blue-50">
+            <td className="px-2 py-2 font-medium text-gray-900 sticky left-0 bg-blue-50 whitespace-nowrap">
+              {shortTarget}
+            </td>
+            {stats.map((stat) => (
+              <td key={stat.key} className="px-2 py-2 text-right font-medium text-gray-800 font-mono">
+                {formatValue(stat.getValue(targetStats), stat.format)}
+              </td>
+            ))}
+          </tr>
 
-        {/* Passing (QB) */}
-        {isQB && (
-          <>
-            <CategoryRow label="Passing" />
-            <StatRow label="Pass Yards" targetValue={targetStats.pass_yards} compValue={compStats.pass_yards} />
-            <StatRow label="Pass TDs" targetValue={targetStats.pass_tds} compValue={compStats.pass_tds} />
-            <StatRow label="Completions" targetValue={targetStats.pass_completions} compValue={compStats.pass_completions} />
-            <StatRow label="Attempts" targetValue={targetStats.pass_attempts} compValue={compStats.pass_attempts} />
-            <StatRow label="INTs" targetValue={targetStats.interceptions} compValue={compStats.interceptions} />
-          </>
-        )}
+          {/* Comparison player row */}
+          <tr className="border-b border-gray-100 hover:bg-gray-50">
+            <td className="px-2 py-2 font-medium text-gray-900 sticky left-0 bg-white whitespace-nowrap">
+              {shortComp}
+            </td>
+            {stats.map((stat) => (
+              <td key={stat.key} className="px-2 py-2 text-right font-medium text-gray-800 font-mono">
+                {formatValue(stat.getValue(compStats), stat.format)}
+              </td>
+            ))}
+          </tr>
 
-        {/* Rushing (QB, RB) */}
-        {(isQB || isRB) && (
-          <>
-            <CategoryRow label="Rushing" />
-            <StatRow label="Rush Yards" targetValue={targetStats.rush_yards} compValue={compStats.rush_yards} />
-            <StatRow label="Rush TDs" targetValue={targetStats.rush_tds} compValue={compStats.rush_tds} />
-            <StatRow label="Carries" targetValue={targetStats.rush_attempts} compValue={compStats.rush_attempts} />
-          </>
-        )}
+          {/* Absolute difference row */}
+          <tr className="border-b border-gray-100 bg-gray-50">
+            <td className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50">
+              Diff
+            </td>
+            {stats.map((stat) => {
+              const targetVal = stat.getValue(targetStats);
+              const compVal = stat.getValue(compStats);
+              const diff = compVal - targetVal;
+              return (
+                <td key={stat.key} className={`px-2 py-2 text-right font-mono text-xs ${getDiffColor(diff)}`}>
+                  {formatDiff(diff, stat.format)}
+                </td>
+              );
+            })}
+          </tr>
 
-        {/* Receiving (RB, WR, TE) */}
-        {(isRB || isWR) && (
-          <>
-            <CategoryRow label="Receiving" />
-            <StatRow label="Rec Yards" targetValue={targetStats.receiving_yards} compValue={compStats.receiving_yards} />
-            <StatRow label="Rec TDs" targetValue={targetStats.receiving_tds} compValue={compStats.receiving_tds} />
-            <StatRow label="Receptions" targetValue={targetStats.receptions} compValue={compStats.receptions} />
-            <StatRow label="Targets" targetValue={targetStats.targets} compValue={compStats.targets} />
-          </>
-        )}
-
-        {/* Fantasy */}
-        <CategoryRow label="Fantasy" />
-        <StatRow
-          label="Half PPR Points"
-          targetValue={targetStats.fantasy_points}
-          compValue={compStats.fantasy_points}
-          format="decimal"
-        />
-      </tbody>
-    </table>
+          {/* Percent difference row */}
+          <tr className="bg-gray-50">
+            <td className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50">
+              Diff %
+            </td>
+            {stats.map((stat) => {
+              const targetVal = stat.getValue(targetStats);
+              const compVal = stat.getValue(compStats);
+              const diff = compVal - targetVal;
+              return (
+                <td key={stat.key} className={`px-2 py-2 text-right font-mono text-xs ${getDiffColor(diff)}`}>
+                  {formatPctDiff(targetVal, compVal)}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }

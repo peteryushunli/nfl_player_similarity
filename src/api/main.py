@@ -17,8 +17,12 @@ API documentation (auto-generated):
     http://localhost:8000/docs
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routers import players, similarity
 
@@ -39,8 +43,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # Vite default dev server
+        "http://localhost:5174",  # Vite alternate port
+        "http://localhost:5175",  # Vite alternate port
+        "http://localhost:5176",  # Vite alternate port
         "http://localhost:3000",  # Alternative React port
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5176",
         "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
@@ -75,10 +83,10 @@ def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/", tags=["system"])
-def root():
+@app.get("/api", tags=["system"])
+def api_info():
     """
-    Root endpoint.
+    API info endpoint.
 
     Returns basic info about the API and links to documentation.
     """
@@ -88,3 +96,16 @@ def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+
+# Serve React frontend from web/dist
+# This must be AFTER all API routes
+frontend_path = Path(__file__).parent.parent.parent / "web" / "dist"
+if frontend_path.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=frontend_path / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve the React frontend for all non-API routes."""
+        return FileResponse(frontend_path / "index.html")
