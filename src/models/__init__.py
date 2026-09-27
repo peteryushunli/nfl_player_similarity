@@ -1,1 +1,0 @@
-# Similarity and projection models module 

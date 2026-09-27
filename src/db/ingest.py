@@ -1,10 +1,12 @@
 """
 Data ingestion pipeline for NFL Player Similarity.
 
-Fetches data from nflreadpy (nflverse) and loads it into the SQLite database.
+Fetches data from nflreadpy (nflverse) and loads it into the SQLite database,
+which fantasy_football_manager_hub's scripts/push-nfl-comps.mjs copies to Supabase.
 """
 
 import logging
+from datetime import date
 from typing import Optional
 from pathlib import Path
 
@@ -17,9 +19,21 @@ logger = logging.getLogger(__name__)
 # Positions we care about
 SKILL_POSITIONS = {"QB", "RB", "WR", "TE"}
 
+
+def latest_completed_season(today: Optional[date] = None) -> int:
+    """
+    Most recent season whose regular season is over.
+
+    A season kicks off in September and its regular season wraps up in early
+    January, so from February on it's last year's season; in January, the one before.
+    """
+    today = today or date.today()
+    return today.year - 1 if today.month >= 2 else today.year - 2
+
+
 # Season range
 MIN_SEASON = 1999
-MAX_SEASON = 2025  # Update when new season data becomes available
+MAX_SEASON = latest_completed_season()
 
 # Earliest draft class to fetch; covers veterans still active in MIN_SEASON
 MIN_DRAFT_YEAR = 1980
@@ -119,7 +133,7 @@ class DataIngester:
         Fetch seasonal player statistics.
 
         Args:
-            seasons: List of seasons to fetch. Defaults to 1999-2025.
+            seasons: List of seasons to fetch. Defaults to MIN_SEASON through MAX_SEASON.
 
         Returns:
             DataFrame with seasonal statistics
@@ -156,7 +170,7 @@ class DataIngester:
         Fetch draft data.
 
         Args:
-            seasons: List of draft years to fetch. Defaults to 1980-2025.
+            seasons: List of draft years to fetch. Defaults to MIN_DRAFT_YEAR through MAX_SEASON.
 
         Returns:
             DataFrame with draft picks
@@ -332,6 +346,13 @@ class DataIngester:
                     'headshot_url']:
             if col not in player_stats.columns:
                 player_stats[col] = None
+
+        # Platform ids are nullable ints, which pandas holds as floats: store "331", not "331.0"
+        for col in ['espn_id', 'sleeper_id']:
+            player_stats[col] = pd.to_numeric(player_stats[col]).astype('Int64').astype('string')
+
+        # Store "1974-06-28", not pandas' "1974-06-28 00:00:00"
+        player_stats['birth_date'] = pd.to_datetime(player_stats['birth_date']).dt.strftime('%Y-%m-%d')
 
         logger.info(f"Built players table with {len(player_stats)} players")
         return player_stats
@@ -520,7 +541,7 @@ class DataIngester:
         Run the full ingestion pipeline.
 
         Args:
-            seasons: Seasons to ingest. Defaults to 1999-2025.
+            seasons: Seasons to ingest. Defaults to MIN_SEASON through MAX_SEASON.
             force: If True, reinitialize database before ingesting.
 
         Returns:
