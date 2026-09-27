@@ -21,6 +21,9 @@ SKILL_POSITIONS = {"QB", "RB", "WR", "TE"}
 MIN_SEASON = 1999
 MAX_SEASON = 2025  # Update when new season data becomes available
 
+# Earliest draft class to fetch; covers veterans still active in MIN_SEASON
+MIN_DRAFT_YEAR = 1980
+
 
 class DataIngester:
     """Handles data ingestion from nflreadpy to SQLite."""
@@ -153,14 +156,13 @@ class DataIngester:
         Fetch draft data.
 
         Args:
-            seasons: List of draft years to fetch. Defaults to 2000-2025.
+            seasons: List of draft years to fetch. Defaults to 1980-2025.
 
         Returns:
             DataFrame with draft picks
         """
         nfl = self._import_nflreadpy()
-        # Draft data starts from 2000 in nflverse
-        seasons = seasons or list(range(2000, MAX_SEASON + 1))
+        seasons = seasons or list(range(MIN_DRAFT_YEAR, MAX_SEASON + 1))
 
         logger.info(f"Fetching draft data for {len(seasons)} years...")
         if self._use_polars:
@@ -459,8 +461,9 @@ class DataIngester:
         Returns:
             DataFrame ready for draft table insertion
         """
-        # Filter to skill positions
-        df = draft_df[draft_df['position'].isin(SKILL_POSITIONS)].copy()
+        # Keep all positions: some players were drafted as FB etc. but played a skill
+        # position. Rows are limited to players in our table at insert time.
+        df = draft_df.copy()
 
         # The draft data may have different ID columns
         # Try to get gsis_id from the ID mappings
@@ -503,7 +506,7 @@ class DataIngester:
             result = result.dropna(subset=['gsis_id'])
             after = len(result)
             if before > after:
-                logger.warning(f"Dropped {before - after} draft records without gsis_id")
+                logger.info(f"Dropped {before - after} draft records without gsis_id")
 
         logger.info(f"Built draft table with {len(result)} records")
         return result
@@ -533,7 +536,7 @@ class DataIngester:
         ids_df = self.fetch_player_ids()
         rosters_df = self.fetch_rosters(seasons)
         stats_df = self.fetch_seasonal_stats(seasons)
-        draft_df = self.fetch_draft_data([s for s in seasons if s >= 2000])
+        draft_df = self.fetch_draft_data(list(range(MIN_DRAFT_YEAR, max(seasons) + 1)))
 
         # Add position and name to stats (stats don't have these natively)
         logger.info("Adding position and name data to stats...")
