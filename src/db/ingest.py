@@ -19,7 +19,7 @@ SKILL_POSITIONS = {"QB", "RB", "WR", "TE"}
 
 # Season range
 MIN_SEASON = 1999
-MAX_SEASON = 2024  # Update when new season data becomes available (2025 not yet in nflverse)
+MAX_SEASON = 2025  # Update when new season data becomes available
 
 
 class DataIngester:
@@ -100,7 +100,9 @@ class DataIngester:
 
         logger.info(f"Fetching roster data for {len(seasons)} seasons...")
         if self._use_polars:
-            df = nfl.load_rosters(seasons)
+            df = self._to_pandas(nfl.load_rosters(seasons))
+            # Align nflreadpy column names with nfl_data_py's
+            df = df.rename(columns={'gsis_id': 'player_id', 'full_name': 'player_name'})
         else:
             # nfl_data_py uses import_seasonal_rosters
             df = nfl.import_seasonal_rosters(seasons)
@@ -124,7 +126,21 @@ class DataIngester:
 
         logger.info(f"Fetching seasonal stats for {len(seasons)} seasons...")
         if self._use_polars:
-            df = nfl.load_player_stats(seasons, stat_type="season")
+            # Regular season only, matching nfl_data_py's import_seasonal_data
+            df = self._to_pandas(nfl.load_player_stats(seasons, summary_level="reg"))
+            # Align nflreadpy column names with nfl_data_py's. Native position/name
+            # are kept aside as fallbacks for the ID/roster joins.
+            df = df.rename(columns={
+                'passing_interceptions': 'interceptions',
+                'sacks_suffered': 'sacks',
+                'sack_yards_lost': 'sack_yards',
+                'position': 'stats_position',
+                'player_display_name': 'stats_player_name',
+            }).drop(columns=['player_name', 'position_group'], errors='ignore')
+            # nflverse has no target data for 2003-2008; use receptions as a floor,
+            # as nfl_data_py did
+            no_targets = (df['targets'].fillna(0) == 0) & (df['receptions'] > 0)
+            df.loc[no_targets, 'targets'] = df.loc[no_targets, 'receptions']
         else:
             df = nfl.import_seasonal_data(seasons)
 
@@ -224,6 +240,13 @@ class DataIngester:
         if 'player_name' not in df.columns:
             df['player_name'] = None
 
+        # Fill anything still missing from the stats' own position/name (nflreadpy only)
+        if 'stats_position' in df.columns:
+            df['position'] = df['position'].fillna(df['stats_position'])
+        if 'stats_player_name' in df.columns:
+            df['player_name'] = df['player_name'].fillna(df['stats_player_name'])
+        df = df.drop(columns=['stats_position', 'stats_player_name'], errors='ignore')
+
         return df
 
     def _build_players_table(
@@ -277,6 +300,7 @@ class DataIngester:
                 'height': 'height_inches',
                 'weight': 'weight',
                 'birth_date': 'birth_date',
+                'headshot_url': 'headshot_url',
             }
             for src, dst in col_mapping.items():
                 if src in roster_bio.columns:
@@ -287,8 +311,23 @@ class DataIngester:
                 roster_subset.columns = ['gsis_id'] + [col_mapping[c] for c in bio_cols[1:]]
                 player_stats = player_stats.merge(roster_subset, on='gsis_id', how='left')
 
+        # Fall back to the most recent headshot in the stats data
+        if 'headshot_url' in stats_filtered.columns:
+            stats_headshots = (
+                stats_filtered.dropna(subset=['headshot_url'])
+                .sort_values('season', ascending=False)
+                .drop_duplicates(subset=['player_id'])
+                .set_index('player_id')['headshot_url']
+            )
+            fallback = player_stats['gsis_id'].map(stats_headshots)
+            if 'headshot_url' in player_stats.columns:
+                player_stats['headshot_url'] = player_stats['headshot_url'].fillna(fallback)
+            else:
+                player_stats['headshot_url'] = fallback
+
         # Ensure all expected columns exist
-        for col in ['pfr_id', 'espn_id', 'sleeper_id', 'height_inches', 'weight', 'birth_date']:
+        for col in ['pfr_id', 'espn_id', 'sleeper_id', 'height_inches', 'weight', 'birth_date',
+                    'headshot_url']:
             if col not in player_stats.columns:
                 player_stats[col] = None
 
@@ -499,6 +538,12 @@ class DataIngester:
         # Add position and name to stats (stats don't have these natively)
         logger.info("Adding position and name data to stats...")
         stats_with_pos = self._add_position_and_name_to_stats(stats_df, ids_df, rosters_df)
+
+        # Drop seasons with no offensive involvement (special teams only, etc.) so they
+        # don't create players or shift season_number
+        touches = stats_with_pos.reindex(columns=['attempts', 'carries', 'targets', 'receptions']).fillna(0).sum(axis=1)
+        stats_with_pos = stats_with_pos[touches > 0]
+        logger.info(f"Kept {len(stats_with_pos)} stat records with offensive involvement")
 
         # Build tables
         logger.info("Building database tables...")

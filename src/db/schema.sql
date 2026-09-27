@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS players (
     height_inches INTEGER,
     weight INTEGER,
     birth_date TEXT,
+    headshot_url TEXT,
 
     -- Career span (calculated from seasons data)
     first_season INTEGER,
